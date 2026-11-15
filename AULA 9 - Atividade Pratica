@@ -1,0 +1,469 @@
+# Aula 09 – Atividade Prática | Computação em Nuvem
+
+## Deployment, atualização e rollback no Kubernetes
+
+### Introdução
+
+Nesta atividade prática, trabalhamos com o Deployment no Kubernetes, utilizando o Nginx como exemplo.
+
+O objetivo foi aprender a criar uma aplicação com mais de uma réplica, acompanhar seu funcionamento, atualizar sua versão e entender como voltar para uma versão anterior caso seja necessário.
+
+Durante a prática, utilizamos comandos para acompanhar as atualizações e verificar se a aplicação estava funcionando corretamente.
+
+A seguir, apresento o passo a passo do que fizemos e os resultados que obtivemos durante a atividade.
+
+---
+
+## PASSO 1 – Verificando os Nodes e criando o Namespace
+
+Primeiro, verificamos se os Nodes do cluster estavam funcionando corretamente.
+
+**Comando utilizado:**
+
+```bash
+kubectl get nodes
+```
+
+**Resultado:**
+
+```text
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   9d    v1.37.1
+node01         Ready    <none>          9d    v1.37.1
+```
+
+Depois, criamos o namespace `aula9`:
+
+```bash
+kubectl create namespace aula9
+```
+
+**Resultado:**
+
+```text
+namespace/aula9 created
+```
+
+Para confirmar se ele foi criado corretamente, utilizamos:
+
+```bash
+kubectl get namespace aula9
+```
+
+**Resultado:**
+
+```text
+NAME    STATUS   AGE
+aula9   Active   23s
+```
+
+**O que eu entendi:**
+
+Primeiro, verificamos se os Nodes estavam disponíveis. Os dois apresentaram o status `Ready`.
+
+Depois, criamos o namespace `aula9`, que foi utilizado para organizar os recursos dessa atividade e manter tudo separado dos outros exercícios.
+
+---
+
+## PASSO 2 – Criando o arquivo aula9.yaml
+
+Nessa etapa, criamos o arquivo `aula9.yaml`, que contém as configurações do Deployment.
+
+**Comando e código utilizados:**
+
+```bash
+cat > aula9.yaml <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-aula9
+  namespace: aula9
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: web-aula9
+  template:
+    metadata:
+      labels:
+        app: web-aula9
+    spec:
+      containers:
+      - name: web
+        image: nginx:alpine
+        command: ['/bin/sh', '-c']
+        args:
+        - 'echo "<h1>Versao $VERSAO</h1>" > /usr/share/nginx/html/index.html; exec nginx -g "daemon off;"'
+        env:
+        - name: VERSAO
+          value: '1'
+        ports:
+        - containerPort: 80
+        readinessProbe:
+EOF targetPort: 80conds: 3
+```
+
+**O que eu entendi:**
+
+Nesse arquivo, definimos as configurações da aplicação que seria executada no Kubernetes.
+
+Utilizamos o Deployment chamado `web-aula9`, configurado para trabalhar com duas réplicas.
+
+Também foi definida a estratégia `RollingUpdate`, que permite atualizar a aplicação gradualmente, sem precisar parar todas as réplicas ao mesmo tempo.
+
+Outro detalhe importante foi a variável `VERSAO`, que começou com o valor `1`. Ela foi utilizada para mostrar a versão da aplicação na página do Nginx.
+
+---
+
+## PASSO 3 – Criando os recursos e verificando a atualização
+
+Depois de criar o arquivo, utilizamos o comando abaixo para aplicar as configurações no cluster:
+
+**Comando utilizado:**
+
+```bash
+kubectl apply -f aula9.yaml
+```
+
+**Resultado:**
+
+```text
+deployment.apps/web-aula9 created
+service/web-aula9 created
+```
+
+Em seguida, verificamos se a atualização do Deployment havia sido concluída:
+
+```bash
+kubectl -n aula9 rollout status deployment/web-aula9
+```
+
+**Resultado:**
+
+```text
+deployment "web-aula9" successfully rolled out
+```
+
+Executamos novamente o mesmo comando:
+
+```bash
+kubectl -n aula9 rollout status deployment/web-aula9
+```
+
+**Resultado:**
+
+```text
+deployment "web-aula9" successfully rolled out
+```
+
+**O que eu entendi:**
+
+Nessa etapa, aplicamos as configurações e verificamos se o Deployment havia sido iniciado corretamente.
+
+A mensagem `successfully rolled out` confirmou que a atualização do Deployment foi concluída com sucesso.
+
+Também observamos que foram criados os recursos Deployment e Service, conforme apresentado no resultado do comando.
+
+---
+
+## PASSO 4 – Testando a primeira versão da aplicação
+
+Depois de criar a aplicação, selecionamos um dos Pods para testar o acesso à página do Nginx.
+
+**Comando utilizado:**
+
+```bash
+POD=$(kubectl -n aula9 get pods -l app=web-aula9 -o jsonpath='{.items[0].metadata.name}') 
+```
+
+Em seguida, realizamos o teste:
+
+```bash
+kubectl -n aula9 exec "$POD" -- wget -qO- http://web-aula9
+```
+
+**Resultado:**
+
+```html
+<h1>Versao 1</h1>
+```
+
+**O que eu entendi:**
+
+Nesse passo, selecionamos um dos Pods criados e fizemos uma requisição para verificar o conteúdo apresentado pela aplicação.
+
+O resultado mostrou `Versao 1`, confirmando que a primeira versão estava sendo exibida corretamente.
+
+---
+
+## PASSO 5 – Atualizando a versão da aplicação
+
+Agora que a primeira versão estava funcionando, realizamos uma atualização para a versão 2.
+
+**Comando utilizado:**
+
+```bash
+kubectl -n aula9 set env deployment/web-aula9 VERSAO=2
+```
+
+**Resultado:**
+
+```text
+deployment.apps/web-aula9 env updated
+```
+
+Depois, verificamos se a atualização havia sido concluída:
+
+```bash
+kubectl -n aula9 rollout status deployment/web-aula9
+```
+
+**Resultado:**
+
+```text
+deployment "web-aula9" successfully rolled out
+```
+
+Em seguida, acompanhamos os Pods:
+
+```bash
+kubectl -n aula9 get pods -l app=web-aula9 -w
+```
+
+**Resultado:**
+
+```text
+NAME                        READY   STATUS    RESTARTS   AGE
+web-aula9-8797dc9dd-cs7q5   1/1     Running   0          61s
+web-aula9-8797dc9dd-td96n   1/1     Running   0          60s
+```
+
+**O que eu entendi:**
+
+Nessa etapa, alteramos o valor da variável `VERSAO` de 1 para 2.
+
+Depois, acompanhamos a atualização e verificamos os Pods. Os dois apareceram com `READY 1/1` e status `Running`.
+
+Isso mostrou que as duas réplicas estavam funcionando após a atualização.
+
+---
+
+## PASSO 6 – Consultando o histórico e os recursos do Deployment
+
+Depois da atualização, verificamos o histórico de versões do Deployment.
+
+**Comando utilizado:**
+
+```bash
+kubectl -n aula9 rollout history deployment/web-aula9
+```
+
+**Resultado:**
+
+```text
+deployment.apps/web-aula9 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+```
+
+Em seguida, consultamos os ReplicaSets:
+
+```bash
+kubectl -n aula9 get replicasets
+```
+
+**Resultado:**
+
+```text
+NAME                   DESIRED   CURRENT   READY   AGE
+web-aula9-649b495bff   0         0         0       7m12s
+web-aula9-8797dc9dd    2         2         2       2m22s
+```
+
+Por último, verificamos o Deployment:
+
+```bash
+kubectl -n aula9 get deployment web-aula9
+```
+
+**Resultado:**
+
+```text
+NAME        READY   UP-TO-DATE   AVAILABLE   AGE
+web-aula9   2/2     2            2           7m38s
+```
+
+**O que eu entendi:**
+
+Nessa etapa, consultamos o histórico para visualizar as revisões do Deployment.
+
+Também verificamos os ReplicaSets, que ajudam a acompanhar as versões dos Pods criados durante as atualizações.
+
+No resultado, observamos que o ReplicaSet antigo estava com zero réplicas, enquanto o novo estava com duas réplicas prontas.
+
+O Deployment também mostrou `2/2`, indicando que as duas réplicas estavam disponíveis.
+
+---
+
+## PASSO 7 – Conferindo a versão 2
+
+Depois de atualizar a aplicação, realizamos outro teste para confirmar se a nova versão estava sendo exibida.
+
+**Comando utilizado:**
+
+```bash
+POD=$(kubectl -n aula9 get pods -l app=web-aula9 -o jsonpath='{.items[0].metadata.name}') 
+```
+
+Em seguida:
+
+```bash
+kubectl -n aula9 exec "$POD" -- wget -qO- http://web-aula9
+```
+
+**Resultado:**
+
+```html
+<h1>Versao 2</h1>
+```
+
+**O que eu entendi:**
+
+Nesse passo, selecionamos novamente um dos Pods e acessamos a aplicação para conferir o resultado da atualização.
+
+A resposta mostrou `Versao 2`, confirmando que a mudança realizada anteriormente estava funcionando.
+
+---
+
+## PASSO 8 – Voltando para a versão anterior (Rollback)
+
+Depois de testar a versão 2, realizamos um rollback para voltar à versão anterior da aplicação.
+
+**Comando utilizado:**
+
+```bash
+kubectl -n aula9 rollout undo deployment/web-aula9
+```
+
+**Resultado:**
+
+```text
+Warning: resource deployments/web-aula9 was previously managed with 'kubectl apply'. Rolling back will not update the kubectl.kubernetes.io/last-applied-configuration annotation, which may cause unexpected behavior on future 'kubectl apply' operations. Consider using 'kubectl apply' with your previous configuration file instead.
+deployment.apps/web-aula9 rolled back
+```
+
+Em seguida, verificamos se o rollback havia sido concluído:
+
+```bash
+kubectl -n aula9 rollout status deployment/web-aula9
+```
+
+**Resultado:**
+
+```text
+deployment "web-aula9" successfully rolled out
+```
+
+Depois, consultamos novamente o histórico:
+
+```bash
+kubectl -n aula9 rollout history deployment/web-aula9
+```
+
+**Resultado:**
+
+```text
+deployment.apps/web-aula9 
+REVISION  CHANGE-CAUSE
+2         <none>
+3         <none>
+```
+
+**O que eu entendi:**
+
+Nessa etapa, utilizamos o comando `rollout undo` para voltar à configuração de uma versão anterior do Deployment.
+
+Durante o processo, apareceu um aviso relacionado ao uso anterior do `kubectl apply`. Mesmo com esse aviso, o comando informou que o rollback foi realizado.
+
+Depois, verificamos o status e o histórico, confirmando que a operação foi concluída com sucesso.
+
+---
+
+## PASSO 9 – Confirmando o rollback e limpando o ambiente
+
+Para confirmar se a aplicação realmente havia voltado para a primeira versão, selecionamos um dos Pods novamente.
+
+**Comando utilizado:**
+
+```bash
+POD=$(kubectl -n aula9 get pods -l app=web-aula9   -o jsonpath='{.items[0].metadata.name}')
+```
+
+Depois, testamos a aplicação:
+
+```bash
+kubectl -n aula9 exec "$POD" -- wget -qO- http://web-aula9
+```
+
+**Resultado:**
+
+```html
+<h1>Versao 1</h1>
+```
+
+Com isso, confirmamos que a aplicação havia voltado para a versão 1.
+
+Após concluir os testes, removemos o namespace utilizado na atividade:
+
+```bash
+kubectl delete namespace aula9
+```
+
+**Resultado:**
+
+```text
+namespace "aula9" deleted
+```
+
+Por último, verificamos se o namespace havia sido removido:
+
+```bash
+kubectl get namespace aula9
+```
+
+**Resultado:**
+
+```text
+Error from server (NotFound): namespaces "aula9" not found
+```
+
+**O que eu entendi:**
+
+Nesse último passo, confirmamos que o rollback havia funcionado, pois a aplicação voltou a apresentar `Versao 1`.
+
+Depois, excluímos o namespace `aula9`, removendo os recursos utilizados durante a atividade.
+
+A mensagem `NotFound` apareceu porque o namespace já havia sido excluído, confirmando que a limpeza do ambiente foi realizada.
+
+---
+
+## Conclusão
+
+Com essa atividade prática, consegui entender melhor como funciona o Deployment no Kubernetes e como podemos atualizar uma aplicação sem precisar criar tudo novamente.
+
+Aprendi a trabalhar com réplicas, acompanhar o processo de atualização e consultar o histórico de versões.
+
+Uma das partes mais interessantes foi realizar a atualização da versão 1 para a versão 2 e depois utilizar o rollback para voltar à versão anterior.
+
+Também consegui entender melhor a importância de acompanhar o status dos Pods e verificar se a aplicação continua funcionando depois de cada alteração.
+
+Assim, pude aprender na prática como atualizar uma aplicação e como recuperar uma versão anterior quando necessário.
+
+**Atividade prática – Aula 09 | Computação em Nuvem**
+
