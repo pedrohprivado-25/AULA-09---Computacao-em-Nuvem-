@@ -1,0 +1,79 @@
+# Aula 09 – Análise da Prática | Computação em Nuvem
+
+## Análise da prática
+
+### Versão 1 – Revisão inicial
+
+Na primeira versão, criamos a aplicação no Kubernetes utilizando um Deployment com duas réplicas.
+
+Depois de aplicar o arquivo de configuração, verificamos se os Pods estavam funcionando corretamente e testamos a resposta HTTP. O resultado mostrou a mensagem:
+
+```html
+<h1>Versao 1</h1>
+```
+
+Com isso, confirmamos que a primeira versão da aplicação estava funcionando e que os Pods estavam prontos para receber as requisições.
+
+### Versão 2 – Nova revisão
+
+Em seguida, atualizamos a variável de ambiente `VERSAO` de 1 para 2 utilizando o comando:
+
+```bash
+kubectl -n aula9 set env deployment/web-aula9 VERSAO=2
+```
+
+Essa alteração fez com que o Kubernetes criasse uma nova revisão do Deployment e atualizasse os Pods.
+
+Depois, acompanhamos o processo de atualização e verificamos que os novos Pods estavam funcionando. Ao testar novamente a resposta HTTP, recebemos:
+
+```html
+<h1>Versao 2</h1>
+```
+
+Assim, confirmamos que a atualização foi realizada corretamente.
+
+### Rollback – Retornando à versão anterior
+
+Depois de testar a versão 2, utilizamos o comando de rollback para voltar à configuração anterior:
+
+```bash
+kubectl -n aula9 rollout undo deployment/web-aula9
+```
+
+O Kubernetes restaurou a revisão anterior do Deployment e realizou uma nova atualização dos Pods.
+
+Após acompanhar o processo, fizemos outro teste HTTP e o resultado foi:
+
+```html
+<h1>Versao 1</h1>
+```
+
+Isso confirmou que o rollback funcionou e que a aplicação voltou para a versão 1.
+
+---
+
+## Desafio em dupla
+
+### 1. O que desencadeou o novo rollout?
+
+O novo rollout foi desencadeado pela alteração na variável de ambiente `VERSAO`, que passou de 1 para 2. Como essa alteração faz parte da configuração dos Pods, o Kubernetes precisou criar novos Pods com a configuração atualizada.
+
+### 2. Por que o Service continuou com o mesmo nome?
+
+Porque o Service é um recurso separado do Deployment. A atualização da aplicação não exigiu a criação de um novo Service. Ele continuou com o mesmo nome e pôde continuar direcionando as requisições para os Pods que atendiam aos critérios configurados.
+
+### 3. Qual a contribuição da readiness para a atualização?
+
+A readiness ajuda a verificar se os Pods estão prontos para receber requisições. Durante a atualização, ela evita que um Pod seja considerado disponível antes de estar preparado. Isso ajuda a manter a aplicação funcionando enquanto os novos Pods são criados.
+
+### 4. O que você precisa conferir após um rollback?
+
+Após um rollback, precisamos conferir se a atualização terminou corretamente, se os Pods estão prontos e funcionando e se a aplicação voltou a apresentar a versão esperada. Também é importante verificar o histórico do Deployment para confirmar a revisão restaurada.
+
+---
+
+## O que aprendi?
+
+Com essa prática, consegui entender melhor como funciona a atualização de uma aplicação no Kubernetes e como podemos voltar para uma versão anterior caso seja necessário.
+
+Também aprendi a importância de acompanhar os Pods durante o rollout, verificar as respostas HTTP e conferir o histórico do Deployment. Dessa forma, podemos identificar se a atualização ocorreu corretamente e se a aplicação continua funcionando depois das alterações.
